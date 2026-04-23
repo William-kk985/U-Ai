@@ -36,9 +36,71 @@ app = FastAPI(title="Portable AI Assistant")
 
 # 获取项目根目录路径
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 加载配置文件
+def load_config():
+    """加载配置文件，如果不存在则使用默认值"""
+    config_path = os.path.join(ROOT_DIR, "config.json")
+    default_config = {
+        "server": {"host": "0.0.0.0", "port": 8000, "reload": False, "log_level": "info"},
+        "model": {
+            "default_model_pattern": "qwen.*coder.*7b",
+            "fallback_patterns": ["qwen.*7b", "llama.*8b", "gemma.*9b", "phi.*3"],
+            "context_window": 8192,
+            "max_tokens": 2048,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "n_gpu_layers": -1,
+            "use_mlock": True,
+            "n_threads": 0
+        },
+        "session": {
+            "max_history_messages": 10,
+            "auto_save_interval": 30,
+            "storage_dir": "05_Data/sessions",
+            "index_cache_dir": "05_Data/sessions/index_cache"
+        },
+        "cache": {
+            "enable_file_index_cache": True,
+            "cache_dir": "05_Data/cache",
+            "max_cache_size_mb": 500
+        },
+        "cleanup": {
+            "enable_auto_cleanup": True,
+            "max_sessions": 50,
+            "cleanup_days": 30,
+            "log_retention_days": 7
+        },
+        "hardware": {
+            "min_memory_gb": 4,
+            "recommended_memory_gb": 16,
+            "memory_buffer_gb": 2
+        }
+    }
+    
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            # 合并默认配置（防止缺少某些字段）
+            for key in default_config:
+                if key not in config:
+                    config[key] = default_config[key]
+            print(f"✅ 配置文件已加载: {config_path}")
+            return config
+        except Exception as e:
+            print(f"⚠️ 配置文件加载失败: {e}，使用默认配置")
+            return default_config
+    else:
+        print(f"ℹ️  未找到配置文件，使用默认配置")
+        print(f"💡 提示：复制 config.example.json 为 config.json 可自定义配置")
+        return default_config
+
+config = load_config()
+
 MODELS_DIR = os.path.join(ROOT_DIR, "01_Models")
 FRONTEND_DIR = os.path.join(ROOT_DIR, "03_Frontend", "dist")
-DATA_DIR = os.path.join(ROOT_DIR, "05_Data", "sessions")
+DATA_DIR = os.path.join(ROOT_DIR, config["session"]["storage_dir"])
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # 全局变量
@@ -59,7 +121,7 @@ RETRIEVAL_CACHE_TTL = 300  # 缓存有效期 5 分钟
 RETRIEVAL_CACHE_MAX_SIZE = 50  # 最多缓存 50 个结果
 
 # 磁盘缓存路径
-INDEX_CACHE_DIR = os.path.join(DATA_DIR, "index_cache")
+INDEX_CACHE_DIR = os.path.join(DATA_DIR, os.path.basename(config["session"]["index_cache_dir"]))
 os.makedirs(INDEX_CACHE_DIR, exist_ok=True)
 
 # 初始化会话管理器

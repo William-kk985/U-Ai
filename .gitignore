@@ -41,10 +41,9 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# Configuration (keep example, ignore actual config)
+config.json
+!config.example.json
 
 # Data (optional, uncomment if you don't want to track session data)
 # 05_Data/sessions/
