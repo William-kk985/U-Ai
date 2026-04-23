@@ -57,3 +57,6 @@ temp/
 00_Env/*.tar.gz
 ai_env_packed.tar.gz
 portable_env_packed.tar.gz
+
+# Conda installer (too large for git)
+Miniconda3-*.sh
