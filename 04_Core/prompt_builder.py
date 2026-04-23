@@ -26,16 +26,16 @@ class PromptBuilder:
             return self._build_llama_prompt(full_history, current_input)
         else:
             # 默认使用 Qwen 格式
-            return self._build_qwen_prompt(full_history, current_input)
+            return self._build_qwen_prompt(full_history, current_input, history_text.strip())
 
-    def _build_qwen_prompt(self, history: str, input: str) -> str:
+    def _build_qwen_prompt(self, full_history: str, input: str, has_real_history: bool = False) -> str:
         # 使用明确的分隔符，防止模型混淆历史和当前输入
-        if history.strip():
+        if has_real_history:
             # 有历史记录的情况
-            return f"{history}\n\n[当前问题]\n{input}\n[开始回答]\n"
+            return f"{full_history}\n\n[当前问题]\n{input}\n[开始回答]\n"
         else:
-            # 无历史记录（首次对话）
-            return f"{input}\n[开始回答]\n"
+            # 无历史记录（首次对话），但仍需包含系统指令
+            return f"{full_history}\n\n[当前问题]\n{input}\n[开始回答]\n"
 
     def _build_gemma_prompt(self, history: str, input: str) -> str:
         # Gemma 使用 <start_of_turn> 标签
