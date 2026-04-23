@@ -53,6 +53,13 @@ fi
 echo "✅ 环境检查通过"
 echo "📝 启动服务..."
 
+# 清除前端缓存（避免旧版本 Service Worker 缓存）
+if [ -d "$ROOT_DIR/03_Frontend/dist" ]; then
+    echo "🧹 清除前端缓存..."
+    # 更新 Service Worker 版本号
+    sed -i 's/ai-assistant-v[0-9]*/ai-assistant-v3/g' "$ROOT_DIR/03_Frontend/dist/sw.js" 2>/dev/null || true
+fi
+
 # 设置环境变量
 export PYTHONPATH="$ROOT_DIR/02_Backend"
 export PATH="$ROOT_DIR/00_Env/portable/bin:$PATH"

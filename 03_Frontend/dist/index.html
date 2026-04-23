@@ -218,7 +218,7 @@
             color: #666;
             font-size: 0.9em;
             transition: all 0.3s;
-            display: block;  /* 始终显示 */
+            display: none;  /* 默认隐藏 */
             overflow: hidden;
             min-height: 50px;
             position: relative;
@@ -1198,15 +1198,32 @@
         const fileNameSpan = document.getElementById('fileName');
         const removeBtn = document.getElementById('removeBtn');
 
-        // 阻止默认拖拽行为（只在 dropZone 上）
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-        });
-
+        // 阻止默认拖拽行为（在 document 上监听）
         function preventDefaults(e) {
             e.preventDefault();
             e.stopPropagation();
         }
+
+        // 在所有元素上阻止默认拖拽行为
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        // 当拖拽进入时显示区域
+        document.addEventListener('dragenter', (e) => {
+            dropZone.style.display = 'block';
+        }, false);
+        
+        document.addEventListener('dragleave', (e) => {
+            // 只有当拖拽真正离开浏览器窗口时才隐藏
+            if (e.clientX <= 0 || e.clientY <= 0 || 
+                e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+                // 如果有文件则不隐藏
+                if (uploadedFiles.length === 0) {
+                    dropZone.style.display = 'none';
+                }
+            }
+        }, false);
 
         // 高亮拖拽区域
         ['dragenter', 'dragover'].forEach(eventName => {
@@ -1578,10 +1595,12 @@
                 });
                 
                 dropZone.classList.add('has-file');
+                dropZone.style.display = 'block';  // 有文件时保持显示
                 dropHint.style.display = 'none';  // 隐藏提示
                 fileActions.style.display = 'block';  // 显示清空按钮
             } else {
                 dropZone.classList.remove('has-file');
+                dropZone.style.display = 'none';  // 无文件时隐藏
                 dropHint.style.display = 'block';  // 显示提示
                 fileActions.style.display = 'none';  // 隐藏清空按钮
             }
@@ -1848,16 +1867,33 @@
 
         // 注册 Service Worker (PWA 支持)
         if ('serviceWorker' in navigator) {
+            // 强制使用 no-cache 请求，确保获取最新版本
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
                     .then(registration => {
                         console.log('[PWA] Service Worker 注册成功:', registration.scope);
+                        // 强制更新
+                        registration.update();
                     })
                     .catch(error => {
                         console.error('[PWA] Service Worker 注册失败:', error);
                     });
             });
         }
+        
+        // 强制清除所有缓存
+        window.addEventListener('load', () => {
+            if ('caches' in window) {
+                caches.keys().then(cacheNames => {
+                    cacheNames.forEach(cacheName => {
+                        if (cacheName.includes('ai-assistant')) {
+                            console.log('[PWA] 清除旧缓存:', cacheName);
+                            caches.delete(cacheName);
+                        }
+                    });
+                });
+            }
+        });
     </script>
 </body>
 </html>
