@@ -125,7 +125,11 @@ INDEX_CACHE_DIR = os.path.join(DATA_DIR, os.path.basename(config["session"]["ind
 os.makedirs(INDEX_CACHE_DIR, exist_ok=True)
 
 # 初始化会话管理器
-manager = SessionManager(storage_dir=DATA_DIR)
+manager = SessionManager(
+    storage_dir=DATA_DIR,
+    max_sessions=config["cleanup"]["max_sessions"],
+    cleanup_days=config["cleanup"]["cleanup_days"]
+)
 
 # 定义对话模式预设
 MODE_PRESETS = {
@@ -226,6 +230,18 @@ def analyze_file_dependencies(files: List[Dict]) -> List[Dict]:
 def save_index_to_disk(code_hash: str, index: Dict):
     """将索引保存到磁盘"""
     try:
+        # 检查缓存大小限制
+        max_cache_mb = config.get("cache", {}).get("max_cache_size_mb", 500)
+        cache_dir_size = sum(
+            os.path.getsize(os.path.join(INDEX_CACHE_DIR, f))
+            for f in os.listdir(INDEX_CACHE_DIR)
+            if os.path.isfile(os.path.join(INDEX_CACHE_DIR, f))
+        ) / (1024 * 1024)  # 转换为 MB
+        
+        if cache_dir_size > max_cache_mb:
+            print(f"⚠️  缓存目录已满 ({cache_dir_size:.1f}MB > {max_cache_mb}MB)，清理旧缓存...")
+            cleanup_old_cache()
+        
         cache_file = os.path.join(INDEX_CACHE_DIR, f"{code_hash}.json")
         # Counter 对象需要序列化
         serializable_index = {
@@ -238,6 +254,28 @@ def save_index_to_disk(code_hash: str, index: Dict):
             json.dump(serializable_index, f, ensure_ascii=False)
     except Exception as e:
         print(f"⚠️ 保存索引到磁盘失败: {e}")
+
+def cleanup_old_cache():
+    """清理最旧的缓存文件"""
+    try:
+        cache_files = [
+            os.path.join(INDEX_CACHE_DIR, f)
+            for f in os.listdir(INDEX_CACHE_DIR)
+            if f.endswith('.json')
+        ]
+        
+        if not cache_files:
+            return
+        
+        # 按修改时间排序，删除最旧的 20%
+        cache_files.sort(key=lambda x: os.path.getmtime(x))
+        files_to_delete = cache_files[:max(1, len(cache_files) // 5)]
+        
+        for file_path in files_to_delete:
+            os.remove(file_path)
+            print(f"   🗑️  删除: {os.path.basename(file_path)}")
+    except Exception as e:
+        print(f"⚠️ 清理缓存失败: {e}")
 
 def load_index_from_disk(code_hash: str) -> Dict:
     """从磁盘加载索引"""
@@ -284,6 +322,11 @@ def build_file_index(code: str) -> Dict:
 
 def get_or_build_index(code: str) -> Dict:
     """获取或构建文件索引（内存 + 磁盘双层缓存）"""
+    # 检查是否启用缓存
+    if not config.get("cache", {}).get("enable_file_index_cache", True):
+        # 缓存禁用，直接构建
+        return build_file_index(code)
+    
     # 使用代码哈希作为缓存键
     code_hash = str(hash(code))
     

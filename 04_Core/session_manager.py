@@ -82,12 +82,17 @@ class ChatSession:
 
 
 class SessionManager:
-    def __init__(self, storage_dir: str):
+    def __init__(self, storage_dir: str, max_sessions: int = 50, cleanup_days: int = 30):
         self.storage_dir = storage_dir
+        self.max_sessions = max_sessions  # 最大会话数量
+        self.cleanup_days = cleanup_days  # 清理超过 N 天的会话
         os.makedirs(storage_dir, exist_ok=True)
         self.active_session: Optional[ChatSession] = None
         self.sessions_meta = {}
         self._load_meta()
+        
+        # 启动时执行一次清理
+        self.auto_cleanup()
 
     def _load_meta(self):
         meta_file = os.path.join(self.storage_dir, "_meta.json")
@@ -145,3 +150,41 @@ class SessionManager:
                 self.active_session = None
             return True
         return False
+
+    def auto_cleanup(self):
+        """自动清理过期和超量的会话"""
+        if not self.sessions_meta:
+            return
+        
+        now = time.time()
+        cleanup_threshold = now - (self.cleanup_days * 24 * 3600)  # N 天前的时间戳
+        
+        # 1. 找出需要删除的会话（按时间排序）
+        sessions_by_time = sorted(
+            self.sessions_meta.items(),
+            key=lambda x: x[1].get('updated', 0)
+        )
+        
+        to_delete = []
+        
+        # 策略 1: 删除超过 N 天的会话
+        for sid, meta in sessions_by_time:
+            if meta.get('updated', 0) < cleanup_threshold:
+                to_delete.append(sid)
+        
+        # 策略 2: 如果会话数量超过上限，删除最旧的（不包括已标记删除的）
+        remaining_count = len(self.sessions_meta) - len(to_delete)
+        if remaining_count > self.max_sessions:
+            excess_count = remaining_count - self.max_sessions
+            for sid, meta in sessions_by_time:
+                if sid not in to_delete and excess_count > 0:
+                    to_delete.append(sid)
+                    excess_count -= 1
+        
+        # 执行删除
+        if to_delete:
+            print(f"🧹 开始清理 {len(to_delete)} 个过期/超量会话...")
+            for sid in to_delete:
+                self.delete_session(sid)
+                print(f"   - 已删除: {sid}")
+            print(f"✅ 清理完成，剩余 {len(self.sessions_meta)} 个会话")
